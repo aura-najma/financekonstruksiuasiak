@@ -5,11 +5,11 @@ from zoneinfo import ZoneInfo
 # ==========================
 # IMPORT MODUL INTEGRASI
 # ==========================
-from scm_po_to_finance import sync_po_to_finance, sync_paid_back_to_scm
-from bayar_vendor_tukang import sync_po_tukang_to_finance, sync_paid_back_to_hrm
-from terima_employee import sync_employee_and_contract
-from shipping_costs import sync_internal_transfer_to_finance_expenses, sync_paid_expenses_note_back_to_scm
-from sync_hrm_work_entry_to_finance import sync_hrm_work_entries_to_finance #nanti ini pake dari alden aja
+from scm_po_to_finance import sync_po_to_finance, sync_paid_back_to_scm #buat beli material (accounting)
+from bayar_vendor_tukang import sync_po_tukang_to_finance, sync_paid_back_to_hrm #buat bayar vendor dan tukang (accounting)
+from terima_employee import sync_employee_and_contract #buat terima employee dari HRM ke Finance (untuk payroll dan nanti struktur gaji ikut kode alden)
+from shipping_costs import sync_internal_transfer_to_finance_expenses, sync_paid_expenses_note_back_to_scm #buat ongkir (expenses)
+from sync_hrm_work_entry_to_finance import sync_hrm_work_entries_to_finance #nanti ini pake dari alden aja buat ngambil work entries dari HRM ke Finance (untuk payroll)
 
 # ==========================
 # FLASK APP
