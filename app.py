@@ -9,7 +9,7 @@ from scm_po_to_finance import sync_po_to_finance, sync_paid_back_to_scm
 from bayar_vendor_tukang import sync_po_tukang_to_finance, sync_paid_back_to_hrm
 from terima_employee import sync_employee_and_contract
 from shipping_costs import sync_internal_transfer_to_finance_expenses, sync_paid_expenses_note_back_to_scm
-from sync_hrm_work_entry_to_finance import sync_hrm_work_entries_to_finance
+from sync_hrm_work_entry_to_finance import sync_hrm_work_entries_to_finance #nanti ini pake dari alden aja
 
 # ==========================
 # FLASK APP
