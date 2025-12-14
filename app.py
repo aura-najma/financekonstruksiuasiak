@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import traceback
 # ==========================
 # IMPORT MODUL INTEGRASI
 # ==========================
@@ -10,7 +11,7 @@ from bayar_vendor_tukang import sync_po_tukang_to_finance, sync_paid_back_to_hrm
 from terima_employee import sync_employee_and_contract #buat terima employee dari HRM ke Finance (untuk payroll dan nanti struktur gaji ikut kode alden)
 from shipping_costs import sync_internal_transfer_to_finance_expenses, sync_paid_expenses_note_back_to_scm #buat ongkir (expenses)
 from sync_hrm_work_entry_to_finance import sync_hrm_work_entries_to_finance #nanti ini pake dari alden aja buat ngambil work entries dari HRM ke Finance (untuk payroll)
-from notify_hrm import notify_latest_payrun_03_paid #buat notif ke HRM (payroll things)
+from notify_hrm import run_latest_paid
 # ==========================
 # FLASK APP
 # ==========================
@@ -145,6 +146,23 @@ def route_notify_payrun_03_paid():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/sync/hrm/payroll/latest-paid", methods=["GET"])
+def route_sync_latest_paid():
+    try:
+        dry_run = request.args.get("dry_run", "0") in ("1", "true", "True", "yes")
+        do_patch = request.args.get("patch", "1") in ("1", "true", "True", "yes")
+
+        result = run_latest_paid(   # ⬅️ LANGSUNG
+            dry_run=dry_run,
+            do_patch=do_patch
+        )
+        return jsonify({"ok": True, **result})
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "trace": traceback.format_exc()
+        }), 500
 
 # =====================================================
 # AUTO SCHEDULER — JALAN SETIAP 3 MENIT
@@ -182,9 +200,6 @@ def scheduled_sync_all():
     except Exception as e:
         print("[ERROR] sync_paid_back_to_hrm:", e)
 
-    # ==========================
-    # ✅ SHIPPING COSTS (INTERNAL TRANSFER)
-    # ==========================
     try:
         print("[AUTO] SCM Internal Transfer DONE → Finance Expense (Shipping)")
         # limit boleh kamu atur
@@ -198,7 +213,15 @@ def scheduled_sync_all():
     except Exception as e:
         print("[ERROR] sync_paid_expenses_note_back_to_scm:", e)
 
-
+    try:
+        print("[AUTO] Finance Payroll (Latest Paid Payrun) → HRM Payslips")
+        # scheduler biasanya non-dry agar benar2 jalan
+        # patch=True biar link payslip-run + company_id kebeneran
+        res = run_latest_paid(dry_run=False, do_patch=True)
+        print(res)
+    except Exception as e:
+        print("[ERROR] run_latest_paid:", e)
+        print(traceback.format_exc())
 # ==========================
 # START SCHEDULER
 # ==========================
@@ -206,7 +229,7 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(
     func=scheduled_sync_all,
     trigger="interval",
-    minutes=3,
+    minutes=1,
     id="auto_sync_all",
     replace_existing=True
 )
