@@ -10,7 +10,7 @@ from bayar_vendor_tukang import sync_po_tukang_to_finance, sync_paid_back_to_hrm
 from terima_employee import sync_employee_and_contract #buat terima employee dari HRM ke Finance (untuk payroll dan nanti struktur gaji ikut kode alden)
 from shipping_costs import sync_internal_transfer_to_finance_expenses, sync_paid_expenses_note_back_to_scm #buat ongkir (expenses)
 from sync_hrm_work_entry_to_finance import sync_hrm_work_entries_to_finance #nanti ini pake dari alden aja buat ngambil work entries dari HRM ke Finance (untuk payroll)
-
+from notify_hrm import notify_latest_payrun_03_paid #buat notif ke HRM (payroll things)
 # ==========================
 # FLASK APP
 # ==========================
@@ -126,6 +126,25 @@ def route_sync_hrm_work_entries():
         })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+    
+@app.route("/notify/hrm/payrun-closed/latest", methods=["GET"])
+def route_notify_latest_payrun_closed():
+    try:
+        res = notify_latest_payrun_closed()
+        return jsonify({"ok": True, **res})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+
+@app.route("/notify/hrm/payrun-03-paid", methods=["GET"])
+def route_notify_payrun_03_paid():
+    try:
+        result = notify_latest_payrun_03_paid()
+        return jsonify({"ok": True, **result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 # =====================================================
 # AUTO SCHEDULER — JALAN SETIAP 3 MENIT
