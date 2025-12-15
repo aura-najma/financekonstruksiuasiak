@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
 import traceback
 # ==========================
 # IMPORT MODUL INTEGRASI
@@ -12,6 +13,7 @@ from terima_employee import sync_employee_and_contract #buat terima employee dar
 from shipping_costs import sync_internal_transfer_to_finance_expenses, sync_paid_expenses_note_back_to_scm #buat ongkir (expenses)
 from sync_hrm_work_entry_to_finance import sync_hrm_work_entries_to_finance #nanti ini pake dari alden aja buat ngambil work entries dari HRM ke Finance (untuk payroll)
 from notify_hrm import run_latest_paid
+from update_task_hrm import run_update_task_to_hrm
 # ==========================
 # FLASK APP
 # ==========================
@@ -29,6 +31,10 @@ def ok(result=None):
 
 def err(e):
     return jsonify({"ok": False, "error": str(e)}), 500
+def to_bool(v, default=False):
+    if v is None:
+        return default
+    return str(v).lower() in ("1", "true", "yes", "y", "on")
 
 
 # ==========================
@@ -164,6 +170,24 @@ def route_sync_latest_paid():
             "trace": traceback.format_exc()
         }), 500
 
+@app.route("/sync/hrm_tasks", methods=["GET"])
+def route_sync_fin_to_hrm_tasks():
+    dry_run = to_bool(request.args.get("dry_run"), False)
+    sync_timesheets = to_bool(request.args.get("sync_timesheets"), True)
+    sync_description = to_bool(request.args.get("sync_description"), True)
+    sync_status = to_bool(request.args.get("sync_status"), True)
+
+    project = request.args.get("project")  # optional
+    only_project_names = [project] if project else ["Project Perumahan 1"]
+
+    result = run_update_task_to_hrm(
+        dry_run=dry_run,
+        only_project_names=only_project_names,
+        sync_timesheets=sync_timesheets,
+        sync_description=sync_description,
+        sync_status=sync_status,
+    )
+    return jsonify(result), (200 if result.get("ok") else 500)
 # =====================================================
 # AUTO SCHEDULER — JALAN SETIAP 3 MENIT
 # =====================================================
@@ -222,6 +246,21 @@ def scheduled_sync_all():
     except Exception as e:
         print("[ERROR] run_latest_paid:", e)
         print(traceback.format_exc())
+
+    try:
+        print("[AUTO] FIN → HRM (Tasks/Stages/Projects/Timesheets)")
+        result = run_update_task_to_hrm(
+            dry_run=False,
+            only_project_names=["Project Perumahan 1"],   # atau [] untuk semua project aktif
+            sync_timesheets=True,
+            sync_description=True,
+            sync_status=True,
+        )
+        print("[AUTO] FIN → HRM result:", result.get("ok"), "| projects:", result.get("projects_processed"))
+        if not result.get("ok"):
+            print("[AUTO][ERROR] FIN → HRM trace:\n", result.get("trace"))
+    except Exception as e:
+        print("[ERROR] run_update_task_to_hrm:", e)
 # ==========================
 # START SCHEDULER
 # ==========================
@@ -229,7 +268,7 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(
     func=scheduled_sync_all,
     trigger="interval",
-    minutes=1,
+    minutes=3,
     id="auto_sync_all",
     replace_existing=True
 )
