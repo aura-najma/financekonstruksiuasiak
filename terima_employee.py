@@ -1,4 +1,3 @@
-
 import xmlrpc.client
 
 # ==========================
@@ -244,6 +243,11 @@ def get_hrm_employees(hrm_models, db, uid, key):
     Sekalian bawa field payroll & 2 field tambahan:
     - structure_type_id
     - bank_account_ids
+
+    PLUS: Informasi Pribadi
+    - birthday
+    - place_of_birth
+    - sex
     """
     emp_ids = hrm_models.execute_kw(
         db, uid, key,
@@ -267,8 +271,12 @@ def get_hrm_employees(hrm_models, db, uid, key):
                 "department_id",
                 "job_id",
                 "company_id",
-                "birthday",
                 "active",
+
+                # ✅ Informasi Pribadi (ditambahkan)
+                "birthday",
+                "place_of_birth",
+                "sex",
 
                 "contract_date_start",
                 "wage",
@@ -276,7 +284,6 @@ def get_hrm_employees(hrm_models, db, uid, key):
                 "contract_type_id",
                 "employee_type",
 
-                # ✅ tambahan dari screenshot
                 "structure_type_id",
                 "bank_account_ids",
             ]
@@ -294,6 +301,7 @@ def sync_employee_and_contract():
     Sinkron karyawan dari HRM → Finance, termasuk:
     - structure_type_id (Salary Structure Type)
     - bank_account_ids (Employee bank accounts to pay salaries)
+    - birthday, place_of_birth, sex (Informasi Pribadi)
 
     updated_employees hanya bertambah jika ada perubahan data nyata.
     """
@@ -309,13 +317,13 @@ def sync_employee_and_contract():
     updated_emp = 0
     still_synced = 0
 
-    # 3) Loop per employee
+    # Loop per employee
     for emp in employees:
         name = emp.get("name")
         identification_id = emp.get("identification_id")
         work_email = emp.get("work_email")
 
-        # --- Tentukan domain pencarian employee di Finance ---
+        # Tentukan domain pencarian employee di Finance
         if identification_id:
             domain = [("identification_id", "=", identification_id)]
         elif work_email:
@@ -330,7 +338,7 @@ def sync_employee_and_contract():
             {"limit": 1}
         )
 
-        # --- Mapping department & job (berdasarkan nama) ---
+        # Mapping department & job (berdasarkan nama)
         department_id = False
         if emp.get("department_id"):
             dept_name = emp["department_id"][1]
@@ -356,7 +364,7 @@ def sync_employee_and_contract():
                 "res.company", [("name", "=", comp_name)]
             )
 
-        # --- Mapping contract_type_id (hr.contract.type) ---
+        # Mapping contract_type_id (hr.contract.type)
         contract_type_id = False
         if emp.get("contract_type_id"):
             ct_name = emp["contract_type_id"][1]
@@ -365,7 +373,7 @@ def sync_employee_and_contract():
                 "hr.contract.type", "name", ct_name
             )
 
-        # --- Mapping structure_type_id (hr.payroll.structure.type) ---
+        # Mapping structure_type_id (hr.payroll.structure.type)
         structure_type_id = False
         if emp.get("structure_type_id"):
             st_name = emp["structure_type_id"][1]
@@ -374,7 +382,7 @@ def sync_employee_and_contract():
                 "hr.payroll.structure.type", "name", st_name
             )
 
-        # --- Data yang akan disimpan di Finance ---
+        # Data yang akan disimpan di Finance
         emp_vals = {
             "name": name,
             "identification_id": identification_id or False,
@@ -385,13 +393,17 @@ def sync_employee_and_contract():
             "job_id": job_id or False,
             "active": emp.get("active", True),
 
+            # ✅ Informasi Pribadi (ditambahkan)
+            "birthday": emp.get("birthday") or False,
+            "place_of_birth": emp.get("place_of_birth") or False,
+            "sex": emp.get("sex") or False,
+
             "contract_date_start": emp.get("contract_date_start") or False,
             "wage": emp.get("wage") or 0.0,
             "wage_type": emp.get("wage_type") or False,
             "employee_type": emp.get("employee_type") or False,
             "contract_type_id": contract_type_id or False,
 
-            # ✅ NEW
             "structure_type_id": structure_type_id or False,
         }
         if company_id:
@@ -399,7 +411,6 @@ def sync_employee_and_contract():
 
         hrm_bank_ids = emp.get("bank_account_ids") or []
 
-        # --- Create / Smart Update employee di Finance ---
         bank_changed = False
         employee_changed = False
 
@@ -413,6 +424,7 @@ def sync_employee_and_contract():
                 [[fin_emp_id]],
                 {"fields": list(emp_vals.keys())}
             )
+
             if old_data and has_diff(old_data[0], emp_vals):
                 fin_models.execute_kw(
                     FIN_DB, fin_uid, FIN_KEY,
@@ -447,7 +459,12 @@ def sync_employee_and_contract():
 
     return {
         "created_employees": created_emp,
-        "updated_employees": updated_emp,   # ✅ cuma kalau ada perubahan nyata
-        "still_synced": still_synced,       # ✅ run ulang tanpa perubahan masuk sini
-        "message": "Sync employee HRM → Finance selesai (smart update + bank + structure type).",
+        "updated_employees": updated_emp,
+        "still_synced": still_synced,
+        "message": "Sync employee HRM → Finance selesai (smart update + bank + structure type + informasi pribadi).",
     }
+
+
+# Kalau mau langsung run saat file dijalankan:
+if __name__ == "__main__":
+    print(sync_employee_and_contract())
